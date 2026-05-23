@@ -124,8 +124,8 @@ fun MainAppContainer(viewModel: EflViewModel) {
             )
         },
         bottomBar = {
-            // Display Bottom Bar if on one of primary screens: home, teams, players, table, more
-            val primaryTabs = listOf("home", "teams", "players", "table", "more")
+            // Display Bottom Bar if on one of primary screens: home, players, table, fpl, more
+            val primaryTabs = listOf("home", "players", "table", "fpl", "more")
             if (activeTabRoute in primaryTabs) {
                 NavigationBar(
                     modifier = Modifier
@@ -144,20 +144,6 @@ fun MainAppContainer(viewModel: EflViewModel) {
                         icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
                         label = { Text("Home") },
                         modifier = Modifier.testTag("tab_home")
-                    )
-                    NavigationBarItem(
-                        selected = activeTabRoute == "teams",
-                        onClick = {
-                            activeTabRoute = "teams"
-                            navController.navigate("teams") {
-                                popUpTo("home") { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Shield, contentDescription = "Teams") },
-                        label = { Text("Teams") },
-                        modifier = Modifier.testTag("tab_teams")
                     )
                     NavigationBarItem(
                         selected = activeTabRoute == "players",
@@ -186,6 +172,20 @@ fun MainAppContainer(viewModel: EflViewModel) {
                         icon = { Icon(Icons.Default.Leaderboard, contentDescription = "Table") },
                         label = { Text("Table") },
                         modifier = Modifier.testTag("tab_table")
+                    )
+                    NavigationBarItem(
+                        selected = activeTabRoute == "fpl",
+                        onClick = {
+                            activeTabRoute = "fpl"
+                            navController.navigate("fpl") {
+                                popUpTo("home") { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(Icons.Default.SportsSoccer, contentDescription = "FPL") },
+                        label = { Text("FPL") },
+                        modifier = Modifier.testTag("tab_fpl")
                     )
                     NavigationBarItem(
                         selected = activeTabRoute == "more",
@@ -249,6 +249,9 @@ fun MainAppContainer(viewModel: EflViewModel) {
                         baseUrl = viewModel.baseUrl
                     )
                 }
+                composable("fpl") {
+                    FplScreen(viewModel = viewModel)
+                }
                 composable("more") {
                     MoreScreen(
                         onNavigateTo = { route ->
@@ -263,6 +266,8 @@ fun MainAppContainer(viewModel: EflViewModel) {
                     FixturesSubPage(
                         fixtures = uiState.fixtures,
                         teams = uiState.teams,
+                        results = uiState.results,
+                        currentSeason = currentSeason,
                         baseUrl = viewModel.baseUrl,
                         onBack = {
                             activeTabRoute = "more"
@@ -277,6 +282,8 @@ fun MainAppContainer(viewModel: EflViewModel) {
                         fixtures = uiState.fixtures,
                         teams = uiState.teams,
                         players = uiState.players,
+                        fplMatchData = uiState.fplMatchData,
+                        currentSeason = currentSeason,
                         onBack = {
                             activeTabRoute = "more"
                             navController.popBackStack()
