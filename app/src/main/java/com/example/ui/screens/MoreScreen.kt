@@ -133,6 +133,8 @@ fun FixturesSubPage(
     fixtures: List<Fixture>,
     teams: List<Team>,
     results: List<Result> = emptyList(),
+    players: List<Player> = emptyList(),
+    fplMatchData: List<FplMatchData> = emptyList(),
     currentSeason: String = "",
     baseUrl: String,
     onBack: () -> Unit
@@ -234,11 +236,17 @@ fun FixturesSubPage(
                         val t1 = teams.firstOrNull { it.id == fix.team1.firstOrNull() }
                         val t2 = teams.firstOrNull { it.id == fix.team2.firstOrNull() }
                         val associatedResult = results.firstOrNull { r -> r.fixture.contains(fix.id) }
+                        var isExpanded by remember { mutableStateOf(false) }
 
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("fixture_card_${fix.id}"),
+                                .testTag("fixture_card_${fix.id}")
+                                .then(
+                                    if (associatedResult != null) {
+                                        Modifier.clickable { isExpanded = !isExpanded }
+                                    } else Modifier
+                                ),
                             shape = RoundedCornerShape(12.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -341,6 +349,225 @@ fun FixturesSubPage(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                }
+
+                                if (associatedResult != null) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                            contentDescription = "Toggle Details",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (isExpanded) "Tap to collapse" else "Tap for Match Center (Scorers, Cards, MOTM)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+
+                                    AnimatedVisibility(visible = isExpanded) {
+                                        val goalsT1 = remember(associatedResult, players) {
+                                            val list = mutableListOf<Pair<Player, Player?>>()
+                                            for (g in 1..7) {
+                                                val scorerId = associatedResult.getEventField("t1_goal_$g").firstOrNull()
+                                                if (scorerId != null) {
+                                                    val scorer = players.firstOrNull { it.id == scorerId }
+                                                    if (scorer != null) {
+                                                        val assistId = associatedResult.getEventField("t1_assist_$g").firstOrNull()
+                                                        val assister = if (assistId != null) players.firstOrNull { it.id == assistId } else null
+                                                        list.add(scorer to assister)
+                                                    }
+                                                }
+                                            }
+                                            list
+                                        }
+
+                                        val goalsT2 = remember(associatedResult, players) {
+                                            val list = mutableListOf<Pair<Player, Player?>>()
+                                            for (g in 1..7) {
+                                                val scorerId = associatedResult.getEventField("t2_goal_$g").firstOrNull()
+                                                if (scorerId != null) {
+                                                    val scorer = players.firstOrNull { it.id == scorerId }
+                                                    if (scorer != null) {
+                                                        val assistId = associatedResult.getEventField("t2_assist_$g").firstOrNull()
+                                                        val assister = if (assistId != null) players.firstOrNull { it.id == assistId } else null
+                                                        list.add(scorer to assister)
+                                                    }
+                                                }
+                                            }
+                                            list
+                                        }
+
+                                        val yellowT1 = remember(associatedResult, players) {
+                                            val list = mutableListOf<Player>()
+                                            for (y in 1..4) {
+                                                val pId = associatedResult.getEventField("t1_yellow_$y").firstOrNull()
+                                                if (pId != null) {
+                                                    players.firstOrNull { it.id == pId }?.let { list.add(it) }
+                                                }
+                                            }
+                                            list
+                                        }
+
+                                        val redT1 = remember(associatedResult, players) {
+                                            val list = mutableListOf<Player>()
+                                            for (r in 1..2) {
+                                                val pId = associatedResult.getEventField("t1_red_$r").firstOrNull()
+                                                if (pId != null) {
+                                                    players.firstOrNull { it.id == pId }?.let { list.add(it) }
+                                                }
+                                            }
+                                            list
+                                        }
+
+                                        val yellowT2 = remember(associatedResult, players) {
+                                            val list = mutableListOf<Player>()
+                                            for (y in 1..4) {
+                                                val pId = associatedResult.getEventField("t2_yellow_$y").firstOrNull()
+                                                if (pId != null) {
+                                                    players.firstOrNull { it.id == pId }?.let { list.add(it) }
+                                                }
+                                            }
+                                            list
+                                        }
+
+                                        val redT2 = remember(associatedResult, players) {
+                                            val list = mutableListOf<Player>()
+                                            for (r in 1..2) {
+                                                val pId = associatedResult.getEventField("t2_red_$r").firstOrNull()
+                                                if (pId != null) {
+                                                    players.firstOrNull { it.id == pId }?.let { list.add(it) }
+                                                }
+                                            }
+                                            list
+                                        }
+
+                                        val motmPlayer = players.firstOrNull { it.id == associatedResult.motm.firstOrNull() }
+                                        val matchData = fplMatchData.firstOrNull { it.fixture.contains(fix.id) }
+
+                                        val penaltiesT1 = remember(matchData, players) {
+                                            val list = mutableListOf<String>()
+                                            if (matchData != null) {
+                                                val taker1Id = matchData.t1_pen_taker_1.firstOrNull()
+                                                val earner1Id = matchData.t1_pen_earned_1.firstOrNull()
+                                                if (taker1Id != null) {
+                                                    val taker = players.firstOrNull { it.id == taker1Id }?.name ?: "Unknown"
+                                                    val earner = if (earner1Id != null) " (Earned by: ${players.firstOrNull { it.id == earner1Id }?.name ?: "Unknown"})" else ""
+                                                    val scored = matchData.t1_pen_scored_1 == true
+                                                    list.add("${if (scored) "⚽" else "❌"} Pen: $taker$earner")
+                                                }
+                                                val taker2Id = matchData.t1_pen_taker_2.firstOrNull()
+                                                val earner2Id = matchData.t1_pen_earned_2.firstOrNull()
+                                                if (taker2Id != null) {
+                                                    val taker = players.firstOrNull { it.id == taker2Id }?.name ?: "Unknown"
+                                                    val earner = if (earner2Id != null) " (Earned by: ${players.firstOrNull { it.id == earner2Id }?.name ?: "Unknown"})" else ""
+                                                    val scored = matchData.t1_pen_scored_2 == true
+                                                    list.add("${if (scored) "⚽" else "❌"} Pen: $taker$earner")
+                                                }
+                                            }
+                                            list
+                                        }
+
+                                        val penaltiesT2 = remember(matchData, players) {
+                                            val list = mutableListOf<String>()
+                                            if (matchData != null) {
+                                                val taker1Id = matchData.t2_pen_taker_1.firstOrNull()
+                                                val earner1Id = matchData.t2_pen_earned_1.firstOrNull()
+                                                if (taker1Id != null) {
+                                                    val taker = players.firstOrNull { it.id == taker1Id }?.name ?: "Unknown"
+                                                    val earner = if (earner1Id != null) " (Earned by: ${players.firstOrNull { it.id == earner1Id }?.name ?: "Unknown"})" else ""
+                                                    val scored = matchData.t2_pen_scored_1 == true
+                                                    list.add("${if (scored) "⚽" else "❌"} Pen: $taker$earner")
+                                                }
+                                                val taker2Id = matchData.t2_pen_taker_2.firstOrNull()
+                                                val earner2Id = matchData.t2_pen_earned_2.firstOrNull()
+                                                if (taker2Id != null) {
+                                                    val taker = players.firstOrNull { it.id == taker2Id }?.name ?: "Unknown"
+                                                    val earner = if (earner2Id != null) " (Earned by: ${players.firstOrNull { it.id == earner2Id }?.name ?: "Unknown"})" else ""
+                                                    val scored = matchData.t2_pen_scored_2 == true
+                                                    list.add("${if (scored) "⚽" else "❌"} Pen: $taker$earner")
+                                                }
+                                            }
+                                            list
+                                        }
+
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                            ) {
+                                                // T1 Events
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    horizontalAlignment = Alignment.End,
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    goalsT1.forEach { gPair ->
+                                                        Text("⚽ ${gPair.first.name ?: ""}${if (gPair.second != null) " (a: ${gPair.second?.name})" else ""}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End)
+                                                    }
+                                                    penaltiesT1.forEach { pen ->
+                                                        Text(pen, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.End)
+                                                    }
+                                                    yellowT1.forEach { p ->
+                                                        Text("🟨 ${p.name ?: ""}", style = MaterialTheme.typography.bodySmall, color = Color(0xFFD97706), textAlign = TextAlign.End)
+                                                    }
+                                                    redT1.forEach { p ->
+                                                        Text("🟥 ${p.name ?: ""}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.End)
+                                                    }
+                                                }
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(1.dp)
+                                                        .align(Alignment.CenterVertically)
+                                                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                                                        .height(40.dp)
+                                                )
+
+                                                // T2 Events
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    horizontalAlignment = Alignment.Start,
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    goalsT2.forEach { gPair ->
+                                                        Text("⚽ ${gPair.first.name ?: ""}${if (gPair.second != null) " (a: ${gPair.second?.name})" else ""}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Start)
+                                                    }
+                                                    penaltiesT2.forEach { pen ->
+                                                        Text(pen, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Start)
+                                                    }
+                                                    yellowT2.forEach { p ->
+                                                        Text("🟨 ${p.name ?: ""}", style = MaterialTheme.typography.bodySmall, color = Color(0xFFD97706), textAlign = TextAlign.Start)
+                                                    }
+                                                    redT2.forEach { p ->
+                                                        Text("🟥 ${p.name ?: ""}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Start)
+                                                    }
+                                                }
+                                            }
+
+                                            if (motmPlayer != null) {
+                                                Text(
+                                                    text = "🏅 Match Best (MOTM): ${motmPlayer.name}",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    textAlign = TextAlign.Center,
+                                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

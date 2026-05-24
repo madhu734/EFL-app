@@ -48,6 +48,59 @@ import com.example.data.model.Team
 import com.example.ui.EflViewModel
 import kotlinx.coroutines.delay
 import org.json.JSONObject
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.text.TextStyle
+
+@Composable
+fun ManagerAvatar(
+    user: FplUser?,
+    size: androidx.compose.ui.unit.Dp = 50.dp,
+    textStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 24.sp)
+) {
+    if (user == null) {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("⚽", fontSize = (size.value * 0.5).sp)
+        }
+        return
+    }
+
+    val avatarStr = user.avatar ?: ""
+    val isEmoji = avatarStr.startsWith("emoji_") && avatarStr.endsWith(".txt")
+    val hasPhoto = avatarStr.isNotEmpty() && !isEmoji
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (hasPhoto) {
+            AsyncImage(
+                model = "https://pbdb2.duckdns.org/api/files/fpl_users/${user.id}/${user.avatar}",
+                contentDescription = "Avatar of ${user.name}",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            val emojiStr = if (isEmoji) {
+                avatarStr.removePrefix("emoji_").removeSuffix(".txt")
+            } else {
+                val avatarEmojis = listOf("🦁", "🐯", "🐝", "🦅", "🦉", "🎸", "⚽", "🏆", "🕶️", "🎩", "🦊", "👑")
+                val hash = user.id.hashCode()
+                avatarEmojis[Math.abs(hash) % avatarEmojis.size]
+            }
+            Text(emojiStr, style = textStyle.copy(fontSize = (size.value * 0.5).sp))
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,9 +140,8 @@ fun FplScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .statusBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -100,19 +152,30 @@ fun FplScreen(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = if (isDeadlinePassed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+                        color = if (isDeadlinePassed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
                     ) {
                         Text(
-                            text = (if (isDeadlinePassed) "Locked" else "Active") + " (${uiState.activeMatchday})",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                            text = uiState.activeMatchday,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Black, fontSize = 11.sp),
                             color = if (isDeadlinePassed) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                     Text(
                         text = timeRemainingStr,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 12.sp,
+                            letterSpacing = 0.2.sp
+                        ),
                         color = if (isDeadlinePassed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                if (isDeadlinePassed) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f)
+                                else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -120,12 +183,12 @@ fun FplScreen(
 
                 IconButton(
                     onClick = { viewModel.loadData() },
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Refresh FPL Data",
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -187,10 +250,45 @@ fun SquadTab(viewModel: EflViewModel, isDeadlineLocked: Boolean) {
     val uiState by viewModel.uiState.collectAsState()
     val user = uiState.currentFplUser
 
-    if (user == null) {
-        FplAuthScreen(viewModel)
-    } else {
-        FplSquadManager(viewModel, user, isDeadlineLocked)
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (user == null) {
+            FplAuthScreen(viewModel)
+        } else {
+            FplSquadManager(viewModel, user, isDeadlineLocked)
+        }
+
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable(enabled = false) { },
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(44.dp)
+                        )
+                        Text(
+                            text = "Loading Secure Data...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -206,10 +304,37 @@ fun FplAuthScreen(viewModel: EflViewModel) {
     var batch by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     
+    // Custom reset-PIN state
+    var foundUserForReset by remember { mutableStateOf<com.example.data.model.FplUser?>(null) }
+    var newPinText by remember { mutableStateOf("") }
+    
     val avatarEmojis = listOf("🦁", "🐯", "🐝", "🦅", "🦉", "🎸", "⚽", "🏆", "🕶️", "🎩", "🦊", "👑")
     var selectedEmoji by remember { mutableStateOf("🦁") }
 
     val context = LocalContext.current
+
+    var selectedPhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var selectedPhotoBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var selectedPhotoName by remember { mutableStateOf<String?>(null) }
+    var usePhotoFromGallery by remember { mutableStateOf(false) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            try {
+                selectedPhotoUri = uri
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bytes = inputStream?.readBytes()
+                selectedPhotoBytes = bytes
+                selectedPhotoName = "avatar_${System.currentTimeMillis()}.jpg"
+                usePhotoFromGallery = true
+            } catch (e: Exception) {
+                Log.e("FplScreen", "Error reading gallery picture bytes", e)
+                Toast.makeText(context, "Failed to load selected picture", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -234,7 +359,7 @@ fun FplAuthScreen(viewModel: EflViewModel) {
                     text = when(mode) {
                         "LOGIN" -> "Manager Sign In"
                         "REGISTER" -> "Create Manager Account"
-                        else -> "Reset Dashboard Password"
+                        else -> "Reset Security PIN"
                     },
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
@@ -267,7 +392,9 @@ fun FplAuthScreen(viewModel: EflViewModel) {
                         modifier = Modifier.fillMaxWidth().testTag("auth_name_field"),
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) }
                     )
+                }
 
+                if (mode == "REGISTER" || (mode == "RESET" && foundUserForReset == null)) {
                     OutlinedTextField(
                         value = batch,
                         onValueChange = { batch = it },
@@ -276,44 +403,109 @@ fun FplAuthScreen(viewModel: EflViewModel) {
                         modifier = Modifier.fillMaxWidth().testTag("auth_batch_field"),
                         leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) }
                     )
+                }
 
-                    // Avatar Selector
-                    Text("Choose Manager Crest Emoji", style = MaterialTheme.typography.labelMedium)
+                if (mode == "REGISTER") {
+                    // Avatar Type Selector
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        avatarEmojis.forEach { emoji ->
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (selectedEmoji == emoji) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.surface
-                                    )
-                                    .clickable { selectedEmoji = emoji },
-                                contentAlignment = Alignment.Center
+                        RadioButton(
+                            selected = !usePhotoFromGallery,
+                            onClick = { usePhotoFromGallery = false }
+                        )
+                        Text("Use Emoji Avatar", style = MaterialTheme.typography.bodyMedium)
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        RadioButton(
+                            selected = usePhotoFromGallery,
+                            onClick = {
+                                usePhotoFromGallery = true
+                                if (selectedPhotoUri == null) {
+                                    imagePickerLauncher.launch("image/*")
+                                }
+                            }
+                        )
+                        Text("Upload Photo", style = MaterialTheme.typography.bodyMedium)
+                    }
+
+                    if (!usePhotoFromGallery) {
+                        Text("Choose Manager Crest Emoji", style = MaterialTheme.typography.labelMedium)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            avatarEmojis.forEach { emoji ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (selectedEmoji == emoji) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.surface
+                                        )
+                                        .clickable { selectedEmoji = emoji },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(emoji, fontSize = 22.sp)
+                                }
+                            }
+                        }
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            if (selectedPhotoUri != null) {
+                                AsyncImage(
+                                    model = selectedPhotoUri,
+                                    contentDescription = "Selected logo preview",
+                                    modifier = Modifier
+                                        .size(54.dp)
+                                        .clip(CircleShape)
+                                        .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(54.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+
+                            Button(
+                                onClick = { imagePickerLauncher.launch("image/*") }
                             ) {
-                                Text(emoji, fontSize = 22.sp)
+                                Text(if (selectedPhotoUri == null) "Select Gallery Photo" else "Change Photo")
                             }
                         }
                     }
                 }
 
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email Address") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    modifier = Modifier.fillMaxWidth().testTag("auth_email_field"),
-                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) }
-                )
+                if (mode == "LOGIN" || mode == "REGISTER" || (mode == "RESET" && foundUserForReset == null)) {
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Email Address") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        modifier = Modifier.fillMaxWidth().testTag("auth_email_field"),
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) }
+                    )
+                }
 
-                if (mode != "RESET") {
+                if (mode == "LOGIN" || mode == "REGISTER") {
                     OutlinedTextField(
                         value = pin,
                         onValueChange = { pin = it },
@@ -326,19 +518,56 @@ fun FplAuthScreen(viewModel: EflViewModel) {
                     )
                 }
 
+                if (mode == "RESET" && foundUserForReset != null) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                "Account Verified! ✅",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Manager: ${foundUserForReset?.name}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                "Batch: ${foundUserForReset?.batch}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = newPinText,
+                        onValueChange = { newPinText = it },
+                        label = { Text("Enter New 4-digit PIN") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth().testTag("auth_new_pin_field"),
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) }
+                    )
+                }
+
                 Button(
                     onClick = {
                         errorMsg = null
-                        if (email.trim().isEmpty()) {
-                            errorMsg = "Please enter email address"
-                            return@Button
-                        }
-                        if (mode != "RESET" && pin.trim().isEmpty()) {
-                            errorMsg = "Please enter passcode (PIN)"
-                            return@Button
-                        }
-
                         if (mode == "LOGIN") {
+                            if (email.trim().isEmpty()) {
+                                errorMsg = "Please enter email address"
+                                return@Button
+                            }
+                            if (pin.trim().isEmpty()) {
+                                errorMsg = "Please enter passcode (PIN)"
+                                return@Button
+                            }
                             viewModel.loginFplUser(
                                 email = email.trim(),
                                 pin = pin.trim(),
@@ -349,30 +578,84 @@ fun FplAuthScreen(viewModel: EflViewModel) {
                             )
                         } else if (mode == "REGISTER") {
                             if (name.trim().isEmpty()) {
-                                errorMsg = "Please fill in Manager Name"
+                                errorMsg = "Please enter Manager Name"
                                 return@Button
                             }
+                            if (batch.trim().isEmpty()) {
+                                errorMsg = "Please enter Batch Code"
+                                return@Button
+                            }
+                            if (email.trim().isEmpty()) {
+                                errorMsg = "Please enter Email Address"
+                                return@Button
+                            }
+                            if (pin.trim().isEmpty()) {
+                                errorMsg = "Please enter PIN passcode"
+                                return@Button
+                            }
+                            
+                            val finalAvatarBytes = if (usePhotoFromGallery && selectedPhotoBytes != null) {
+                                selectedPhotoBytes
+                            } else {
+                                selectedEmoji.toByteArray(Charsets.UTF_8)
+                            }
+                            val finalAvatarName = if (usePhotoFromGallery && selectedPhotoBytes != null) {
+                                selectedPhotoName
+                            } else {
+                                "emoji_${selectedEmoji}.txt"
+                            }
+
                             viewModel.registerFplUser(
                                 name = name.trim(),
                                 batch = batch.trim(),
                                 email = email.trim(),
                                 pin = pin.trim(),
-                                avatarBytes = selectedEmoji.toByteArray(Charsets.UTF_8),
-                                avatarFileName = "emoji_${selectedEmoji}.txt",
+                                avatarBytes = finalAvatarBytes,
+                                avatarFileName = finalAvatarName,
                                 onSuccess = {
                                     Toast.makeText(context, "Manager registration successful!", Toast.LENGTH_SHORT).show()
                                 },
                                 onError = { errorMsg = it }
                             )
                         } else {
-                            viewModel.requestFplReset(
-                                email = email.trim(),
-                                onSuccess = {
-                                    Toast.makeText(context, "Password reset request sent!", Toast.LENGTH_LONG).show()
-                                    mode = "LOGIN"
-                                },
-                                onError = { errorMsg = it }
-                            )
+                            // RESET PIN mode
+                            val verifiedUser = foundUserForReset
+                            if (verifiedUser == null) {
+                                if (batch.trim().isEmpty()) {
+                                    errorMsg = "Please enter Batch Code"
+                                    return@Button
+                                }
+                                if (email.trim().isEmpty()) {
+                                    errorMsg = "Please enter Registered Email address"
+                                    return@Button
+                                }
+                                viewModel.searchFplUserToReset(
+                                    batch = batch.trim(),
+                                    email = email.trim(),
+                                    onSuccess = { u ->
+                                        foundUserForReset = u
+                                        errorMsg = null
+                                    },
+                                    onError = { errorMsg = it }
+                                )
+                            } else {
+                                if (newPinText.trim().length < 4) {
+                                    errorMsg = "PIN must be at least 4 digits"
+                                    return@Button
+                                }
+                                viewModel.resetSecurityPin(
+                                    userId = verifiedUser.id,
+                                    newPin = newPinText.trim(),
+                                    onSuccess = {
+                                        Toast.makeText(context, "PIN successfully updated! Please sign in with your new PIN.", Toast.LENGTH_LONG).show()
+                                        mode = "LOGIN"
+                                        foundUserForReset = null
+                                        newPinText = ""
+                                        errorMsg = null
+                                    },
+                                    onError = { errorMsg = it }
+                                )
+                            }
                         }
                     },
                     modifier = Modifier
@@ -381,9 +664,12 @@ fun FplAuthScreen(viewModel: EflViewModel) {
                         .testTag("auth_submit_btn")
                 ) {
                     Text(
-                        if (mode == "LOGIN") "Sign In"
-                        else if (mode == "REGISTER") "Register Account"
-                        else "Send Reset Link"
+                        when {
+                            mode == "LOGIN" -> "Sign In"
+                            mode == "REGISTER" -> "Register Account"
+                            foundUserForReset == null -> "Verify Account"
+                            else -> "Update Security PIN"
+                        }
                     )
                 }
 
@@ -391,6 +677,8 @@ fun FplAuthScreen(viewModel: EflViewModel) {
                 Surface(
                     onClick = {
                         errorMsg = null
+                        foundUserForReset = null
+                        newPinText = ""
                         mode = if (mode == "LOGIN") "REGISTER" else "LOGIN"
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -406,7 +694,12 @@ fun FplAuthScreen(viewModel: EflViewModel) {
 
                 if (mode == "LOGIN") {
                     Surface(
-                        onClick = { mode = "RESET" },
+                        onClick = {
+                            mode = "RESET"
+                            errorMsg = null
+                            foundUserForReset = null
+                            newPinText = ""
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         color = Color.Transparent
                     ) {
@@ -419,7 +712,12 @@ fun FplAuthScreen(viewModel: EflViewModel) {
                     }
                 } else if (mode == "RESET") {
                     Surface(
-                        onClick = { mode = "LOGIN" },
+                        onClick = {
+                            mode = "LOGIN"
+                            errorMsg = null
+                            foundUserForReset = null
+                            newPinText = ""
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         color = Color.Transparent
                     ) {
@@ -519,20 +817,7 @@ fun FplSquadManager(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val avatarStr = user.avatar ?: ""
-                    val displayAvatar = if (avatarStr.startsWith("emoji_") && avatarStr.endsWith(".txt")) {
-                        avatarStr.removePrefix("emoji_").removeSuffix(".txt")
-                    } else "⚽"
-
-                    Box(
-                        modifier = Modifier
-                            .size(50.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(displayAvatar, fontSize = 26.sp)
-                    }
+                    ManagerAvatar(user = user, size = 50.dp)
 
                     Column {
                         Text(user.name ?: "Unknown Manager", fontWeight = FontWeight.Black, style = MaterialTheme.typography.bodyLarge)
@@ -578,46 +863,6 @@ fun FplSquadManager(
                         color = if (spentBudget > 100.0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                     )
                 }
-            }
-        }
-
-        // Carefulness Reminders banner
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.25f)),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f))
-        ) {
-            Column(
-                modifier = Modifier.padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Reminders",
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "Crucial Reminders:",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                }
-                Text(
-                    text = "1. You must click on 'Save Squad' below to update/save your squad. Unsaved drafts will be lost.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-                Text(
-                    text = "2. Last saved squad before a match day countdown ends will be Auto saved for that match day.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
             }
         }
 
@@ -849,6 +1094,46 @@ fun FplSquadManager(
         // Squad Actions Save or Clear button
         if (!isDeadlineLocked) {
             val errors = evaluateSquadErrors(squadPlayers, captainKey, viceCaptainKey, spentBudget, uiState.players, uiState.teams)
+
+            // Crucial Reminders banner (moved to bottom)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.25f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Reminders",
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Crucial Reminders:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                    Text(
+                        text = "1. You must click on 'Save Squad' below to update/save your squad. Unsaved drafts will be lost.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Text(
+                        text = "2. Last saved squad before a match day countdown ends will be Auto saved for that match day.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+            }
 
             if (errors.isNotEmpty()) {
                 Surface(
@@ -1114,18 +1399,44 @@ fun FplProfileModal(
     var email by remember { mutableStateOf(user.email ?: "") }
     var pin by remember { mutableStateOf("") }
     val avatarEmojis = listOf("🦁", "🐯", "🐝", "🦅", "🦉", "🎸", "⚽", "🏆", "🕶️", "🎩", "🦊", "👑")
+    
+    val avatarStr = user.avatar ?: ""
+    val isInitEmoji = avatarStr.startsWith("emoji_") && avatarStr.endsWith(".txt")
+    
     var selectedEmoji by remember {
-        val avatarStr = user.avatar ?: ""
         var em = "🦁"
-        if (avatarStr.startsWith("emoji_") && avatarStr.endsWith(".txt")) {
+        if (isInitEmoji) {
             em = avatarStr.removePrefix("emoji_").removeSuffix(".txt")
         }
         mutableStateOf(em)
     }
 
+    var selectedPhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var selectedPhotoBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var selectedPhotoName by remember { mutableStateOf<String?>(null) }
+    var usePhotoFromGallery by remember { mutableStateOf(!isInitEmoji && avatarStr.isNotEmpty()) }
+
     var progressMode by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            try {
+                selectedPhotoUri = uri
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bytes = inputStream?.readBytes()
+                selectedPhotoBytes = bytes
+                selectedPhotoName = "avatar_${System.currentTimeMillis()}.jpg"
+                usePhotoFromGallery = true
+            } catch (e: Exception) {
+                Log.e("FplScreen", "Error reading gallery picture bytes", e)
+                Toast.makeText(context, "Failed to load selected picture", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -1169,26 +1480,94 @@ fun FplProfileModal(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Text("Profile Avatar Crest Emojis:", style = MaterialTheme.typography.labelSmall)
+                // Avatar Option Selector Row
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    avatarEmojis.forEach { emoji ->
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (selectedEmoji == emoji) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .clickable { selectedEmoji = emoji },
-                            contentAlignment = Alignment.Center
+                    RadioButton(
+                        selected = !usePhotoFromGallery,
+                        onClick = { usePhotoFromGallery = false }
+                    )
+                    Text("Use Emoji", style = MaterialTheme.typography.bodyMedium)
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    RadioButton(
+                        selected = usePhotoFromGallery,
+                        onClick = {
+                            usePhotoFromGallery = true
+                            if (selectedPhotoUri == null && (avatarStr.isEmpty() || isInitEmoji)) {
+                                imagePickerLauncher.launch("image/*")
+                            }
+                        }
+                    )
+                    Text("Upload Photo", style = MaterialTheme.typography.bodyMedium)
+                }
+
+                if (!usePhotoFromGallery) {
+                    Text("Profile Avatar Crest Emojis:", style = MaterialTheme.typography.labelSmall)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        avatarEmojis.forEach { emoji ->
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (selectedEmoji == emoji) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                    .clickable { selectedEmoji = emoji },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(emoji, fontSize = 18.sp)
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                    ) {
+                        val currentAvatarUrl = if (!isInitEmoji && avatarStr.isNotEmpty()) {
+                            "https://pbdb2.duckdns.org/api/files/fpl_users/${user.id}/${user.avatar}"
+                        } else null
+                        
+                        val photoModel = selectedPhotoUri ?: currentAvatarUrl
+
+                        if (photoModel != null) {
+                            AsyncImage(
+                                model = photoModel,
+                                contentDescription = "Active logo preview",
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                                    .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        Button(
+                            onClick = { imagePickerLauncher.launch("image/*") }
                         ) {
-                            Text(emoji, fontSize = 18.sp)
+                            Text(if (photoModel == null) "Select Photo" else "Change Photo")
                         }
                     }
                 }
@@ -1208,11 +1587,23 @@ fun FplProfileModal(
                         onClick = {
                             progressMode = true
                             errorMsg = null
+                            
+                            val finalAvatarBytes = if (usePhotoFromGallery) {
+                                selectedPhotoBytes
+                            } else {
+                                selectedEmoji.toByteArray(Charsets.UTF_8)
+                            }
+                            val finalAvatarName = if (usePhotoFromGallery) {
+                                selectedPhotoName
+                            } else {
+                                "emoji_${selectedEmoji}.txt"
+                            }
+
                             viewModel.updateFplProfile(
                                 email = email.trim(),
                                 pin = if (pin.trim().isEmpty()) null else pin.trim(),
-                                avatarBytes = selectedEmoji.toByteArray(Charsets.UTF_8),
-                                avatarFileName = "emoji_${selectedEmoji}.txt",
+                                avatarBytes = finalAvatarBytes,
+                                avatarFileName = finalAvatarName,
                                 onSuccess = {
                                     Toast.makeText(context, "Manager profile updated!", Toast.LENGTH_SHORT).show()
                                     onDismiss()
@@ -1492,11 +1883,7 @@ fun LeaderboardTab(viewModel: EflViewModel) {
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    val avatarStr = mgr.avatar ?: ""
-                                    val iconDisplay = if (avatarStr.startsWith("emoji_") && avatarStr.endsWith(".txt")) {
-                                        avatarStr.removePrefix("emoji_").removeSuffix(".txt")
-                                    } else "🦊"
-                                    Text(iconDisplay, fontSize = 20.sp)
+                                    ManagerAvatar(user = mgr, size = 32.dp)
 
                                     Column {
                                         Text(mgr.name ?: "Unknown", fontWeight = FontWeight.Bold)
@@ -1564,20 +1951,7 @@ fun ManagerSquadDetailsModal(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    val avatarStr = user.avatar ?: ""
-                    val iconDisplay = if (avatarStr.startsWith("emoji_") && avatarStr.endsWith(".txt")) {
-                        avatarStr.removePrefix("emoji_").removeSuffix(".txt")
-                    } else "🎩"
-
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(iconDisplay, fontSize = 22.sp)
-                    }
+                    ManagerAvatar(user = user, size = 44.dp)
 
                     Column {
                         Text("${user.name}'s Squad", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)

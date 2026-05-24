@@ -5,6 +5,13 @@ import com.squareup.moshi.JsonClass
 import com.squareup.moshi.FromJson
 import com.squareup.moshi.ToJson
 import com.squareup.moshi.JsonReader
+import com.squareup.moshi.JsonQualifier
+import com.squareup.moshi.Moshi
+
+@JsonQualifier
+@Retention(AnnotationRetention.RUNTIME)
+@Target(AnnotationTarget.FIELD, AnnotationTarget.PROPERTY, AnnotationTarget.VALUE_PARAMETER)
+annotation class FlexibleSquad
 
 @JsonClass(generateAdapter = true)
 data class PocketBaseResponse<T>(
@@ -205,7 +212,6 @@ data class SystemSetting(
     @Json(name = "force_lock") val force_lock: Any? = null
 )
 
-@JsonClass(generateAdapter = true)
 data class FplUser(
     @Json(name = "id") val id: String,
     @Json(name = "name") val name: String? = null,
@@ -309,5 +315,125 @@ class PocketBaseRelationAdapter {
     @ToJson
     fun toJson(value: List<String>?): String? {
         return value?.joinToString(",")
+    }
+}
+
+class FplUserAdapter {
+    @FromJson
+    fun fromJson(reader: JsonReader): FplUser {
+        var id = ""
+        var name: String? = null
+        var batch: String? = null
+        var email: String? = null
+        var avatar: String? = null
+        var squad: String? = null
+        var squad_md1: String? = null
+        var squad_md2: String? = null
+        var squad_md3: String? = null
+        var squad_md4: String? = null
+        var squad_md5: String? = null
+        var collectionId = ""
+
+        reader.beginObject()
+        while (reader.hasNext()) {
+            when (reader.nextName()) {
+                "id" -> id = reader.nextString()
+                "name" -> name = if (reader.peek() == JsonReader.Token.NULL) { reader.nextNull<java.lang.Void>(); null } else reader.nextString()
+                "batch" -> batch = if (reader.peek() == JsonReader.Token.NULL) { reader.nextNull<java.lang.Void>(); null } else reader.nextString()
+                "email" -> email = if (reader.peek() == JsonReader.Token.NULL) { reader.nextNull<java.lang.Void>(); null } else reader.nextString()
+                "avatar" -> avatar = if (reader.peek() == JsonReader.Token.NULL) { reader.nextNull<java.lang.Void>(); null } else reader.nextString()
+                "squad" -> squad = parseFlexibleSquadValue(reader)
+                "squad_md1" -> squad_md1 = parseFlexibleSquadValue(reader)
+                "squad_md2" -> squad_md2 = parseFlexibleSquadValue(reader)
+                "squad_md3" -> squad_md3 = parseFlexibleSquadValue(reader)
+                "squad_md4" -> squad_md4 = parseFlexibleSquadValue(reader)
+                "squad_md5" -> squad_md5 = parseFlexibleSquadValue(reader)
+                "collectionId" -> collectionId = reader.nextString()
+                else -> reader.skipValue()
+            }
+        }
+        reader.endObject()
+
+        return FplUser(
+            id = id,
+            name = name,
+            batch = batch,
+            email = email,
+            avatar = avatar,
+            squad = squad,
+            squad_md1 = squad_md1,
+            squad_md2 = squad_md2,
+            squad_md3 = squad_md3,
+            squad_md4 = squad_md4,
+            squad_md5 = squad_md5,
+            collectionId = collectionId
+        )
+    }
+
+    private fun parseFlexibleSquadValue(reader: JsonReader): String? {
+        val peek = reader.peek()
+        if (peek == JsonReader.Token.NULL) {
+            reader.nextNull<java.lang.Void>()
+            return null
+        }
+        if (peek == JsonReader.Token.BEGIN_OBJECT || peek == JsonReader.Token.BEGIN_ARRAY) {
+            val value = reader.readJsonValue()
+            return try {
+                val subMoshi = Moshi.Builder().addLast(com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory()).build()
+                subMoshi.adapter(Any::class.java).toJson(value)
+            } catch (e: Exception) {
+                value?.toString()
+            }
+        }
+        if (peek == JsonReader.Token.STRING) {
+            return reader.nextString()
+        }
+        val value = reader.readJsonValue()
+        return value?.toString()
+    }
+
+    @ToJson
+    fun toJson(writer: com.squareup.moshi.JsonWriter, value: FplUser?) {
+        if (value == null) {
+            writer.nullValue()
+            return
+        }
+        writer.beginObject()
+        writer.name("id").value(value.id)
+        writer.name("name").value(value.name)
+        writer.name("batch").value(value.batch)
+        writer.name("email").value(value.email)
+        writer.name("avatar").value(value.avatar)
+
+        writeFlexibleSquad(writer, "squad", value.squad)
+        writeFlexibleSquad(writer, "squad_md1", value.squad_md1)
+        writeFlexibleSquad(writer, "squad_md2", value.squad_md2)
+        writeFlexibleSquad(writer, "squad_md3", value.squad_md3)
+        writeFlexibleSquad(writer, "squad_md4", value.squad_md4)
+        writeFlexibleSquad(writer, "squad_md5", value.squad_md5)
+
+        writer.name("collectionId").value(value.collectionId)
+        writer.endObject()
+    }
+
+    private fun writeFlexibleSquad(writer: com.squareup.moshi.JsonWriter, name: String, value: String?) {
+        writer.name(name)
+        if (value == null) {
+            writer.nullValue()
+            return
+        }
+        val trimmed = value.trim()
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            try {
+                val subMoshi = Moshi.Builder().addLast(com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory()).build()
+                val parsedObj = subMoshi.adapter(Any::class.java).fromJson(value)
+                val str = subMoshi.adapter(Any::class.java).toJson(parsedObj)
+                writer.value(str)
+                return
+            } catch (e: Exception) {
+                // fall through to string value
+            }
+        }
+        writer.value(value)
     }
 }

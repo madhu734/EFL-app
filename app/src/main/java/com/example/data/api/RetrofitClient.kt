@@ -16,12 +16,21 @@ object RetrofitClient {
 
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header("Cache-Control", "no-cache, no-store, must-revalidate")
+                .header("Pragma", "no-cache")
+                .header("Expires", "0")
+                .build()
+            chain.proceed(request)
+        }
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private val moshi = Moshi.Builder()
+    val moshi = Moshi.Builder()
         .add(PocketBaseRelationAdapter())
+        .add(com.example.data.model.FplUserAdapter())
         .addLast(KotlinJsonAdapterFactory())
         .build()
 

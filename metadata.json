@@ -1,5 +1,5 @@
 {
-  "name": "EFL Portal",
+  "name": "EFL",
   "description": "The official English Football League Portal for Jahangirnagar University Department of English. View rosters, standings, match fixtures, live results, player auctions, and supporter logs.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

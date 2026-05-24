@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,7 +70,7 @@ fun MainAppContainer(viewModel: EflViewModel) {
                 title = {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            text = "EFL PORTAL",
+                            text = "EFL",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 1.sp
@@ -210,8 +211,13 @@ fun MainAppContainer(viewModel: EflViewModel) {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Main views navigation Graph
-            NavHost(
+            PullToRefreshBox(
+                isRefreshing = uiState.isLoading && uiState.fplUsers.isNotEmpty(), // show refresh indicator only when we already have data
+                onRefresh = { viewModel.loadData() },
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Main views navigation Graph
+                NavHost(
                 navController = navController,
                 startDestination = "home"
             ) {
@@ -267,6 +273,8 @@ fun MainAppContainer(viewModel: EflViewModel) {
                         fixtures = uiState.fixtures,
                         teams = uiState.teams,
                         results = uiState.results,
+                        players = uiState.players,
+                        fplMatchData = uiState.fplMatchData,
                         currentSeason = currentSeason,
                         baseUrl = viewModel.baseUrl,
                         onBack = {
@@ -360,6 +368,7 @@ fun MainAppContainer(viewModel: EflViewModel) {
                         )
                     }
                 }
+            }
             }
         }
     }

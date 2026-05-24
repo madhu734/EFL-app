@@ -757,6 +757,45 @@ class EflViewModel(application: Application) : AndroidViewModel(application) {
         return pin + "_EFLSEC"
     }
 
+    private fun parseRetrofitError(e: Exception, defaultMsg: String): String {
+        if (e is retrofit2.HttpException) {
+            try {
+                val errBody = e.response()?.errorBody()?.string()
+                if (!errBody.isNullOrEmpty()) {
+                    val json = org.json.JSONObject(errBody)
+                    val data = json.optJSONObject("data")
+                    val errMap = mutableListOf<String>()
+                    if (data != null) {
+                        val keys = data.keys()
+                        while (keys.hasNext()) {
+                            val key = keys.next()
+                            val fieldObj = data.opt(key)
+                            val fieldErr = if (fieldObj is org.json.JSONObject) {
+                                fieldObj.optString("message")
+                            } else if (fieldObj is org.json.JSONArray) {
+                                fieldObj.optString(0)
+                            } else {
+                                fieldObj?.toString() ?: ""
+                            }
+                            if (!fieldErr.isNullOrEmpty()) {
+                                errMap.add("$key: $fieldErr")
+                            }
+                        }
+                    }
+                    val baseMsg = json.optString("message", "")
+                    return if (errMap.isNotEmpty()) {
+                        "$baseMsg (${errMap.joinToString(", ")})"
+                    } else {
+                        baseMsg.ifEmpty { "Error code ${e.code()}" }
+                    }
+                }
+            } catch (ex: Exception) {
+                Log.e("EflViewModel", "Error parsing HTTP details", ex)
+            }
+        }
+        return e.message ?: defaultMsg
+    }
+
     fun loginFplUser(email: String, pin: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
@@ -765,7 +804,7 @@ class EflViewModel(application: Application) : AndroidViewModel(application) {
                 val body = json.toRequestBody("application/json".toMediaTypeOrNull())
                 val response = RetrofitClient.apiService.executePost("https://pbdb2.duckdns.org/api/collections/fpl_users/auth-with-password", body)
                 
-                val moshiObj = Moshi.Builder().addLast(com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory()).build()
+                val moshiObj = com.example.data.api.RetrofitClient.moshi
                 val adapter = moshiObj.adapter(FplAuthResponse::class.java)
                 val authObj = adapter.fromJson(response.string()) as? FplAuthResponse
                 if (authObj != null) {
@@ -778,7 +817,7 @@ class EflViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 Log.e("EflViewModel", "FPL login error", e)
-                onError("Invalid credentials or server down")
+                onError(parseRetrofitError(e, "Invalid credentials or server down"))
             } finally {
                 _uiState.update { it.copy(isLoading = false) }
             }
@@ -822,7 +861,7 @@ class EflViewModel(application: Application) : AndroidViewModel(application) {
                 loginFplUser(email, pin, onSuccess, onError)
             } catch (e: Exception) {
                 Log.e("EflViewModel", "FPL registration error", e)
-                onError("Error creating account. Email might already exist.")
+                onError(parseRetrofitError(e, "Error creating account. Ensure valid email & unique username."))
                 _uiState.update { it.copy(isLoading = false) }
             }
         }
@@ -857,7 +896,7 @@ class EflViewModel(application: Application) : AndroidViewModel(application) {
                 val patchUrl = "https://pbdb2.duckdns.org/api/collections/fpl_users/records/${user.id}"
                 val response = RetrofitClient.apiService.executePatch(patchUrl, builder.build())
                 
-                val moshiObj = Moshi.Builder().addLast(com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory()).build()
+                val moshiObj = com.example.data.api.RetrofitClient.moshi
                 val adapter = moshiObj.adapter(FplUser::class.java)
                 val updatedUser = adapter.fromJson(response.string()) as? FplUser
                 if (updatedUser != null) {
@@ -869,7 +908,7 @@ class EflViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 Log.e("EflViewModel", "FPL update profile error", e)
-                onError("Failed to update profile details. Email might conflict.")
+                onError(parseRetrofitError(e, "Failed to update profile details. Email/username conflict."))
             } finally {
                 _uiState.update { it.copy(isLoading = false) }
             }
@@ -909,6 +948,56 @@ class EflViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun searchFplUserToReset(
+        batch: String,
+        email: String,
+        onSuccess: (com.example.data.model.FplUser) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                val filter = "(batch='${batch.trim()}' && email='${email.trim()}')"
+                val url = "https://pbdb2.duckdns.org/api/collections/fpl_users/records?filter=${java.net.URLEncoder.encode(filter, "UTF-8")}"
+                val response = RetrofitClient.apiService.getFplUsers(url)
+                if (response.items.isNotEmpty()) {
+                    onSuccess(response.items[0])
+                } else {
+                    onError("No manager found matching Batch '$batch' and Email '$email'.")
+                }
+            } catch (e: Exception) {
+                Log.e("EflViewModel", "Search reset user error", e)
+                onError("Failed searching for manager: ${e.localizedMessage}")
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
+        }
+    }
+
+    fun resetSecurityPin(
+        userId: String,
+        newPin: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                val padded = padPassword(newPin)
+                val json = "{\"password\":\"$padded\",\"passwordConfirm\":\"$padded\"}"
+                val body = json.toRequestBody("application/json".toMediaTypeOrNull())
+                val patchUrl = "https://pbdb2.duckdns.org/api/collections/fpl_users/records/$userId"
+                RetrofitClient.apiService.executePatch(patchUrl, body)
+                onSuccess()
+            } catch (e: Exception) {
+                Log.e("EflViewModel", "Reset custom PIN error", e)
+                onError("Failed to update PIN: ${e.localizedMessage}")
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
+        }
+    }
+
     fun saveFplSquad(
         formation: String,
         players: Map<String, String?>,
@@ -936,7 +1025,7 @@ class EflViewModel(application: Application) : AndroidViewModel(application) {
                 val patchUrl = "https://pbdb2.duckdns.org/api/collections/fpl_users/records/${user.id}"
                 val response = RetrofitClient.apiService.executePatch(patchUrl, body)
                 
-                val moshiObj = Moshi.Builder().addLast(com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory()).build()
+                val moshiObj = com.example.data.api.RetrofitClient.moshi
                 val adapter = moshiObj.adapter(FplUser::class.java)
                 val updatedUser = adapter.fromJson(response.string()) as? FplUser
                 if (updatedUser != null) {
