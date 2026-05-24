@@ -12,11 +12,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # লোকাল gradlew না থাকায় সরাসরি গিটহাব ক্লাউডে গ্র্যাডল সেটআপ করা হচ্ছে
+      # গ্র্যাডল ভার্সন পরিবর্তন করে ৯.৩.১ করা হলো (প্লাগইন ৯.১.১ এর রিকোয়ারমেন্ট অনুযায়ী)
       - name: Setup Gradle Engine
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.4
+          gradle-version: 9.3.1
 
       # সরাসরি 'gradle' কম্যান্ড দিয়ে ডিবাগ এপিকে বিল্ড
       - name: Build Debug APK with Gradle
