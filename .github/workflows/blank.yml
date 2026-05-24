@@ -1,0 +1,29 @@
+name: Build EFL Application APK
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # লোকাল gradlew না থাকায় সরাসরি গিটহাব ক্লাউডে গ্র্যাডল সেটআপ করা হচ্ছে
+      - name: Setup Gradle Engine
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.4
+
+      # সরাসরি 'gradle' কম্যান্ড দিয়ে ডিবাগ এপিকে বিল্ড
+      - name: Build Debug APK with Gradle
+        run: gradle assembleDebug
+
+      - name: Upload Production APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: efl-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
