@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -76,6 +79,14 @@ fun MoreScreen(
                 title = "About EFL",
                 onClick = { onNavigateTo("about") },
                 modifier = Modifier.testTag("menu_about")
+            )
+        }
+        item {
+            MenuTile(
+                icon = Icons.Default.Help,
+                title = "Help & Support",
+                onClick = { onNavigateTo("support") },
+                modifier = Modifier.testTag("menu_support")
             )
         }
     }
@@ -306,18 +317,27 @@ fun FixturesSubPage(
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Text(
-                                        text = t1?.displayName ?: "TBD",
+                                    Row(
                                         modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                                        textAlign = TextAlign.End,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = t1?.displayName ?: "TBD",
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                            textAlign = TextAlign.End,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        TeamLogo(team = t1, baseUrl = baseUrl, size = 28.dp)
+                                    }
 
-                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
 
                                     if (associatedResult != null) {
                                         Surface(
@@ -325,8 +345,14 @@ fun FixturesSubPage(
                                             color = MaterialTheme.colorScheme.surfaceVariant,
                                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                                         ) {
+                                            val showPens = associatedResult.t1_pen_score != null && associatedResult.t2_pen_score != null && (associatedResult.t1_pen_score > 0.0 || associatedResult.t2_pen_score > 0.0)
+                                            val scoreText = if (showPens) {
+                                                "${associatedResult.score1} (${associatedResult.t1_pen_score!!.toInt()}) - ${associatedResult.score2} (${associatedResult.t2_pen_score!!.toInt()})"
+                                            } else {
+                                                "${associatedResult.score1} - ${associatedResult.score2}"
+                                            }
                                             Text(
-                                                text = "${associatedResult.score1} - ${associatedResult.score2}",
+                                                text = scoreText,
                                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Black),
                                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                             )
@@ -339,16 +365,24 @@ fun FixturesSubPage(
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
 
-                                    Text(
-                                        text = t2?.displayName ?: "TBD",
+                                    Row(
                                         modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                                        textAlign = TextAlign.Start,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                        horizontalArrangement = Arrangement.Start,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        TeamLogo(team = t2, baseUrl = baseUrl, size = 28.dp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = t2?.displayName ?: "TBD",
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                            textAlign = TextAlign.Start,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                    }
                                 }
 
                                 if (associatedResult != null) {
@@ -515,7 +549,11 @@ fun FixturesSubPage(
                                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                                 ) {
                                                     goalsT1.forEach { gPair ->
-                                                        Text("⚽ ${gPair.first.name ?: ""}${if (gPair.second != null) " (a: ${gPair.second?.name})" else ""}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End)
+                                                        val scorer = gPair.first
+                                                        val prevCount = goalsT1.take(goalsT1.indexOf(gPair)).count { it.first.id == scorer.id }
+                                                        val penSuffix = getGoalSuffix(associatedResult, scorer.id, true, prevCount)
+                                                        val assistStr = if (gPair.second != null) " (a: ${gPair.second?.name})" else ""
+                                                        Text("⚽ ${scorer.name ?: ""}$penSuffix$assistStr", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End)
                                                     }
                                                     penaltiesT1.forEach { pen ->
                                                         Text(pen, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.End)
@@ -543,7 +581,11 @@ fun FixturesSubPage(
                                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                                 ) {
                                                     goalsT2.forEach { gPair ->
-                                                        Text("⚽ ${gPair.first.name ?: ""}${if (gPair.second != null) " (a: ${gPair.second?.name})" else ""}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Start)
+                                                        val scorer = gPair.first
+                                                        val prevCount = goalsT2.take(goalsT2.indexOf(gPair)).count { it.first.id == scorer.id }
+                                                        val penSuffix = getGoalSuffix(associatedResult, scorer.id, false, prevCount)
+                                                        val assistStr = if (gPair.second != null) " (a: ${gPair.second?.name})" else ""
+                                                        Text("⚽ ${gPair.first.name ?: ""}$penSuffix$assistStr", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Start)
                                                     }
                                                     penaltiesT2.forEach { pen ->
                                                         Text(pen, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Start)
@@ -600,6 +642,19 @@ fun formatMatchDate(dateStr: String?): String {
     }
 }
 
+fun getGoalSuffix(res: Result, scorerId: String, isT1: Boolean, previousScoredCount: Int): String {
+    val penGoals = if (isT1) {
+        listOf(res.t1_pen_goal_1, res.t1_pen_goal_2, res.t1_pen_goal_3, res.t1_pen_goal_4)
+    } else {
+        listOf(res.t2_pen_goal_1, res.t2_pen_goal_2, res.t2_pen_goal_3, res.t2_pen_goal_4)
+    }
+    val penCount = penGoals.count { it.firstOrNull() == scorerId }
+    if (previousScoredCount < penCount) {
+        return " (p)"
+    }
+    return ""
+}
+
 // ──────────────────────────────────────────────
 // RESULTS SUB PAGE
 // ──────────────────────────────────────────────
@@ -612,6 +667,7 @@ fun ResultsSubPage(
     players: List<Player>,
     fplMatchData: List<FplMatchData> = emptyList(),
     currentSeason: String = "",
+    baseUrl: String,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -783,38 +839,61 @@ fun ResultsSubPage(
                                 // Interactive scoreboard
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Text(
-                                        text = t1?.displayName ?: "TBD",
+                                    Row(
                                         modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                                        textAlign = TextAlign.End,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = t1?.displayName ?: "TBD",
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                            textAlign = TextAlign.End,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        TeamLogo(team = t1, baseUrl = baseUrl, size = 28.dp)
+                                    }
 
                                     Surface(
-                                        modifier = Modifier.padding(horizontal = 14.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp),
                                         shape = RoundedCornerShape(6.dp),
                                         color = MaterialTheme.colorScheme.surfaceVariant,
                                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                                     ) {
+                                        val showPens = res.t1_pen_score != null && res.t2_pen_score != null && (res.t1_pen_score > 0.0 || res.t2_pen_score > 0.0)
+                                        val scoreText = if (showPens) {
+                                            "${res.score1} (${res.t1_pen_score!!.toInt()}) - ${res.score2} (${res.t2_pen_score!!.toInt()})"
+                                        } else {
+                                            "${res.score1} - ${res.score2}"
+                                        }
                                         Text(
-                                            text = "${res.score1} - ${res.score2}",
+                                            text = scoreText,
                                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black),
                                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                         )
                                     }
 
-                                    Text(
-                                        text = t2?.displayName ?: "TBD",
+                                    Row(
                                         modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                                        textAlign = TextAlign.Start,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                        horizontalArrangement = Arrangement.Start,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        TeamLogo(team = t2, baseUrl = baseUrl, size = 28.dp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = t2?.displayName ?: "TBD",
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                            textAlign = TextAlign.Start,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                    }
                                 }
 
                                 // Interactive Prompt
@@ -863,9 +942,11 @@ fun ResultsSubPage(
                                                     goalsT1.forEach { gPair ->
                                                         val scorer = gPair.first
                                                         val assist = gPair.second
+                                                        val prevCount = goalsT1.take(goalsT1.indexOf(gPair)).count { it.first.id == scorer.id }
+                                                        val penSuffix = getGoalSuffix(res, scorer.id, true, prevCount)
                                                         val assistStr = if (assist != null) " (a: ${assist.name})" else ""
                                                         Text(
-                                                            text = "⚽ ${scorer.name ?: "Player"}$assistStr",
+                                                            text = "⚽ ${scorer.name ?: "Player"}$penSuffix$assistStr",
                                                             style = MaterialTheme.typography.bodySmall,
                                                             textAlign = TextAlign.End,
                                                             fontWeight = FontWeight.Medium
@@ -907,9 +988,11 @@ fun ResultsSubPage(
                                                     goalsT2.forEach { gPair ->
                                                         val scorer = gPair.first
                                                         val assist = gPair.second
+                                                        val prevCount = goalsT2.take(goalsT2.indexOf(gPair)).count { it.first.id == scorer.id }
+                                                        val penSuffix = getGoalSuffix(res, scorer.id, false, prevCount)
                                                         val assistStr = if (assist != null) " (a: ${assist.name})" else ""
                                                         Text(
-                                                            text = "⚽ ${scorer.name ?: "Player"}$assistStr",
+                                                            text = "⚽ ${scorer.name ?: "Player"}$penSuffix$assistStr",
                                                             style = MaterialTheme.typography.bodySmall,
                                                             textAlign = TextAlign.Start,
                                                             fontWeight = FontWeight.Medium
@@ -954,38 +1037,34 @@ fun ResultsSubPage(
                                                 .padding(10.dp),
                                             verticalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
-                                            Text(
-                                                text = "Match Center Performance Metrics",
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(bottom = 2.dp)
-                                            )
-
-                                            if (motmPlayer != null) {
-                                                Text(
-                                                    text = "🏅 MOTM (1st Best): ${motmPlayer.name} · ${t1?.displayName ?: ""}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-
-                                            if (potmPlayer != null && potmPlayer.id != motmPlayer?.id) {
-                                                Text(
-                                                    text = "🏅 POTM: ${potmPlayer.name}",
-                                                    style = MaterialTheme.typography.bodySmall
-                                                )
+                                            if (motmPlayer != null || potmPlayer != null) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    if (motmPlayer != null) {
+                                                        Text(
+                                                            text = "🏅 MOTM: ${motmPlayer.name}",
+                                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                            color = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                    }
+                                                    if (potmPlayer != null) {
+                                                        Text(
+                                                            text = "🧤 POTM: ${potmPlayer.name}",
+                                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                            color = Color(0xFF10B981),
+                                                            modifier = Modifier.weight(1f),
+                                                            textAlign = TextAlign.End
+                                                        )
+                                                    }
+                                                }
+                                                Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
                                             }
 
                                             if (matchData != null) {
-                                                if (matchData.t1_saves != null || matchData.t2_saves != null) {
-                                                    val s1 = matchData.t1_saves ?: 0
-                                                    val s2 = matchData.t2_saves ?: 0
-                                                    Text(
-                                                        text = "🧤 Goalkeeper Saves: $s1 (Home) vs $s2 (Away)",
-                                                        style = MaterialTheme.typography.bodySmall
-                                                    )
-                                                }
-
                                                 val sbPlayers = matchData.second_best.mapNotNull { sId -> players.firstOrNull { it.id == sId } }
                                                 if (sbPlayers.isNotEmpty()) {
                                                     Text(
@@ -1180,6 +1259,24 @@ fun AboutSubPage(onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            // Centered EFL Brand Logo
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = com.example.R.drawable.efl_logo,
+                    contentDescription = "EFL Logo",
+                    modifier = Modifier
+                        .size(140.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .padding(4.dp)
+                )
+            }
+
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "THE TOURNAMENT",
@@ -1221,6 +1318,242 @@ fun AboutSubPage(onBack: () -> Unit) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+// ──────────────────────────────────────────────
+// TEAM LOGO COMPONENT
+// ──────────────────────────────────────────────
+@Composable
+fun TeamLogo(
+    team: Team?,
+    baseUrl: String,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 28.dp
+) {
+    val teamColor = remember(team) { hexToColor(team?.teamBgColorHex) }
+    Surface(
+        modifier = modifier.size(size),
+        shape = CircleShape,
+        color = teamColor,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+    ) {
+        if (team != null && !team.banner.isNullOrEmpty()) {
+            AsyncImage(
+                model = "$baseUrl/api/files/${team.collectionId}/${team.id}/${team.banner}",
+                contentDescription = team.displayName,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = team?.crest_text ?: "FC",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (size.value * 0.45f).sp,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+// ──────────────────────────────────────────────
+// HELP & SUPPORT SUB PAGE
+// ──────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SupportSubPage(onBack: () -> Unit) {
+    val context = LocalContext.current
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Help & Support") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Elegant Icon / Illustration Header
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer, shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Help,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+
+            Text(
+                text = "How can we help?",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black)
+            )
+
+            Text(
+                text = "In case you need any support regarding your EFL FPL account, tournament stats, data corrections, or other issues, please get in touch with our team via email or WhatsApp below. We're here to assist you!",
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 22.sp,
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Email Card
+            val email = "bumblebee9171@gmail.com"
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        try {
+                            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("mailto:$email")
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            val clip = android.content.ClipData.newPlainText("EFL Support Email", email)
+                            clipboard.setPrimaryClip(clip)
+                            android.widget.Toast.makeText(context, "Email copied: $email", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(MaterialTheme.colorScheme.secondaryContainer, shape = CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = "Email Support",
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Email Support",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = email,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.OpenInNew,
+                        contentDescription = "Open",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            // WhatsApp Card
+            val whatsappNumber = "+8801300890530"
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        try {
+                            val cleanNumber = whatsappNumber.replace("+", "").replace(" ", "")
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                data = Uri.parse("https://wa.me/$cleanNumber")
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            val clip = android.content.ClipData.newPlainText("EFL Support WhatsApp Phone", whatsappNumber)
+                            clipboard.setPrimaryClip(clip)
+                            android.widget.Toast.makeText(context, "Number copied: $whatsappNumber", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(Color(0xFF25D366).copy(alpha = 0.15f), shape = CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Chat,
+                            contentDescription = "WhatsApp Chat",
+                            tint = Color(0xFF128C7E)
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "WhatsApp Chat",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = whatsappNumber,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.OpenInNew,
+                        contentDescription = "Open",
+                        modifier = Modifier.size(18.dp),
+                        tint = Color(0xFF128C7E)
+                    )
                 }
             }
         }

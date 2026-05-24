@@ -61,6 +61,16 @@ fun MainAppContainer(viewModel: EflViewModel) {
     // Keep track of current primary navigation screen route
     var activeTabRoute by remember { mutableStateOf("home") }
 
+    // Sync active navigation tab with navController state dynamically (system back button / navigation drawer)
+    LaunchedEffect(navController) {
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+            val route = destination.route
+            if (route != null) {
+                activeTabRoute = route
+            }
+        }
+    }
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
@@ -292,6 +302,7 @@ fun MainAppContainer(viewModel: EflViewModel) {
                         players = uiState.players,
                         fplMatchData = uiState.fplMatchData,
                         currentSeason = currentSeason,
+                        baseUrl = viewModel.baseUrl,
                         onBack = {
                             activeTabRoute = "more"
                             navController.popBackStack()
@@ -313,6 +324,15 @@ fun MainAppContainer(viewModel: EflViewModel) {
 
                 composable("about") {
                     AboutSubPage(
+                        onBack = {
+                            activeTabRoute = "more"
+                            navController.popBackStack()
+                        }
+                    )
+                }
+
+                composable("support") {
+                    SupportSubPage(
                         onBack = {
                             activeTabRoute = "more"
                             navController.popBackStack()

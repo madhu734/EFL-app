@@ -395,7 +395,7 @@ class EflViewModel(application: Application) : AndroidViewModel(application) {
                 if (mins == 0 && yellow == 0 && red == 0) continue
 
                 var pts = 0
-                val pos = (p.position ?: "DEF").uppercase()
+                val pos = p.fplPosition
 
                 if (mins >= 15) pts += 2
                 else if (mins > 0) pts += 1

@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,6 +52,42 @@ import org.json.JSONObject
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.text.TextStyle
+
+fun emojiToWord(emoji: String): String {
+    return when (emoji) {
+        "🦁" -> "lion"
+        "🐯" -> "tiger"
+        "🐝" -> "bee"
+        "🦅" -> "eagle"
+        "🦉" -> "owl"
+        "🎸" -> "guitar"
+        "⚽" -> "ball"
+        "🏆" -> "trophy"
+        "🕶️" -> "glasses"
+        "🎩" -> "hat"
+        "🦊" -> "fox"
+        "👑" -> "crown"
+        else -> "lion"
+    }
+}
+
+fun wordToEmoji(word: String): String {
+    return when (word) {
+        "lion" -> "🦁"
+        "tiger" -> "🐯"
+        "bee" -> "🐝"
+        "eagle" -> "🦅"
+        "owl" -> "🦉"
+        "guitar" -> "🎸"
+        "ball" -> "⚽"
+        "trophy" -> "🏆"
+        "glasses" -> "🕶️"
+        "hat" -> "🎩"
+        "fox" -> "🦊"
+        "crown" -> "👑"
+        else -> "🦁"
+    }
+}
 
 @Composable
 fun ManagerAvatar(
@@ -88,14 +125,24 @@ fun ManagerAvatar(
                 contentDescription = "Avatar of ${user.name}",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
-            )
+			)
         } else {
             val emojiStr = if (isEmoji) {
-                avatarStr.removePrefix("emoji_").removeSuffix(".txt")
+                val raw = avatarStr.removePrefix("emoji_").removeSuffix(".txt")
+                val word = if (raw.contains("_")) {
+                    raw.substringBeforeLast("_")
+                } else {
+                    raw
+                }
+                if (word.length > 2) {
+                    wordToEmoji(word)
+                } else {
+                    word
+                }
             } else {
                 val avatarEmojis = listOf("🦁", "🐯", "🐝", "🦅", "🦉", "🎸", "⚽", "🏆", "🕶️", "🎩", "🦊", "👑")
                 val hash = user.id.hashCode()
-                avatarEmojis[Math.abs(hash) % avatarEmojis.size]
+                avatarEmojis[(hash % avatarEmojis.size + avatarEmojis.size) % avatarEmojis.size]
             }
             Text(emojiStr, style = textStyle.copy(fontSize = (size.value * 0.5).sp))
         }
@@ -597,12 +644,12 @@ fun FplAuthScreen(viewModel: EflViewModel) {
                             val finalAvatarBytes = if (usePhotoFromGallery && selectedPhotoBytes != null) {
                                 selectedPhotoBytes
                             } else {
-                                selectedEmoji.toByteArray(Charsets.UTF_8)
+                                emojiToWord(selectedEmoji).toByteArray(Charsets.UTF_8)
                             }
                             val finalAvatarName = if (usePhotoFromGallery && selectedPhotoBytes != null) {
                                 selectedPhotoName
                             } else {
-                                "emoji_${selectedEmoji}.txt"
+                                "emoji_${emojiToWord(selectedEmoji)}.txt"
                             }
 
                             viewModel.registerFplUser(
@@ -935,49 +982,13 @@ fun FplSquadManager(
                     val mCount = split[1]
                     val fCount = split[2]
 
-                    // Goalkeeper row (At the very bottom/GK role)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        PitchSlot(
-                            slotKey = "GK-1",
-                            pId = squadPlayers["GK-1"],
-                            uiState = uiState,
-                            isDeadlineLocked = isDeadlineLocked,
-                            isCaptain = captainKey == "GK-1",
-                            isViceCaptain = viceCaptainKey == "GK-1",
-                            onSlotClick = {
-                                selectingSlotKey = "GK-1"
-                                isPlayerSelectionVisible = true
-                            },
-                            onRemove = { squadPlayers["GK-1"] = null },
-                            onMarkCaptain = { isCap ->
-                                if (isCap) {
-                                    captainKey = "GK-1"
-                                    if (viceCaptainKey == "GK-1") viceCaptainKey = null
-                                } else {
-                                    captainKey = null
-                                }
-                            },
-                            onMarkViceCaptain = { isVC ->
-                                if (isVC) {
-                                    viceCaptainKey = "GK-1"
-                                    if (captainKey == "GK-1") captainKey = null
-                                } else {
-                                    viceCaptainKey = null
-                                }
-                            }
-                        )
-                    }
-
-                    // Defenders row
+                    // Forwards row (At the very top)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        for (i in 1..dCount) {
-                            val slot = "DEF-$i"
+                        for (i in 1..fCount) {
+                            val slot = "FWD-$i"
                             PitchSlot(
                                 slotKey = slot,
                                 pId = squadPlayers[slot],
@@ -1049,13 +1060,13 @@ fun FplSquadManager(
                         }
                     }
 
-                    // Forwards row (At the very top)
+                    // Defenders row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        for (i in 1..fCount) {
-                            val slot = "FWD-$i"
+                        for (i in 1..dCount) {
+                            val slot = "DEF-$i"
                             PitchSlot(
                                 slotKey = slot,
                                 pId = squadPlayers[slot],
@@ -1086,6 +1097,42 @@ fun FplSquadManager(
                                 }
                             )
                         }
+                    }
+
+                    // Goalkeeper row (At the very bottom/GK role)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        PitchSlot(
+                            slotKey = "GK-1",
+                            pId = squadPlayers["GK-1"],
+                            uiState = uiState,
+                            isDeadlineLocked = isDeadlineLocked,
+                            isCaptain = captainKey == "GK-1",
+                            isViceCaptain = viceCaptainKey == "GK-1",
+                            onSlotClick = {
+                                selectingSlotKey = "GK-1"
+                                isPlayerSelectionVisible = true
+                            },
+                            onRemove = { squadPlayers["GK-1"] = null },
+                            onMarkCaptain = { isCap ->
+                                if (isCap) {
+                                    captainKey = "GK-1"
+                                    if (viceCaptainKey == "GK-1") viceCaptainKey = null
+                                } else {
+                                    captainKey = null
+                                }
+                            },
+                            onMarkViceCaptain = { isVC ->
+                                if (isVC) {
+                                    viceCaptainKey = "GK-1"
+                                    if (captainKey == "GK-1") captainKey = null
+                                } else {
+                                    viceCaptainKey = null
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -1398,6 +1445,7 @@ fun FplProfileModal(
 ) {
     var email by remember { mutableStateOf(user.email ?: "") }
     var pin by remember { mutableStateOf("") }
+    var isNewPinVisible by remember { mutableStateOf(false) }
     val avatarEmojis = listOf("🦁", "🐯", "🐝", "🦅", "🦉", "🎸", "⚽", "🏆", "🕶️", "🎩", "🦊", "👑")
     
     val avatarStr = user.avatar ?: ""
@@ -1406,7 +1454,17 @@ fun FplProfileModal(
     var selectedEmoji by remember {
         var em = "🦁"
         if (isInitEmoji) {
-            em = avatarStr.removePrefix("emoji_").removeSuffix(".txt")
+            val raw = avatarStr.removePrefix("emoji_").removeSuffix(".txt")
+            val word = if (raw.contains("_")) {
+                raw.substringBeforeLast("_")
+            } else {
+                raw
+            }
+            em = if (word.length > 2) {
+                wordToEmoji(word)
+            } else {
+                word
+            }
         }
         mutableStateOf(em)
     }
@@ -1448,7 +1506,8 @@ fun FplProfileModal(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text("Edit Manager Profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1463,20 +1522,35 @@ fun FplProfileModal(
                     }
                 }
 
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email Address") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Current Email: ${user.email ?: "None"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Email Address") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 OutlinedTextField(
                     value = pin,
                     onValueChange = { pin = it },
-                    label = { Text("New PIN (Leave blank to keep current)") },
+                    label = { Text("New Pin/Password (Leave blank to keep current)") },
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
+                    visualTransformation = if (isNewPinVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { isNewPinVisible = !isNewPinVisible }) {
+                            Icon(
+                                imageVector = if (isNewPinVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                contentDescription = "Toggle Pin/Password visibility"
+                            )
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -1585,23 +1659,26 @@ fun FplProfileModal(
                         modifier = Modifier.weight(1f),
                         enabled = !progressMode && email.isNotEmpty(),
                         onClick = {
+                            val activeEmail = email.trim()
+                            val activePin = pin.trim()
+
                             progressMode = true
                             errorMsg = null
                             
                             val finalAvatarBytes = if (usePhotoFromGallery) {
                                 selectedPhotoBytes
                             } else {
-                                selectedEmoji.toByteArray(Charsets.UTF_8)
+                                emojiToWord(selectedEmoji).toByteArray(Charsets.UTF_8)
                             }
                             val finalAvatarName = if (usePhotoFromGallery) {
                                 selectedPhotoName
                             } else {
-                                "emoji_${selectedEmoji}.txt"
+                                "emoji_${emojiToWord(selectedEmoji)}.txt"
                             }
 
                             viewModel.updateFplProfile(
-                                email = email.trim(),
-                                pin = if (pin.trim().isEmpty()) null else pin.trim(),
+                                email = activeEmail,
+                                pin = if (activePin.isEmpty()) null else activePin,
                                 avatarBytes = finalAvatarBytes,
                                 avatarFileName = finalAvatarName,
                                 onSuccess = {
@@ -1618,7 +1695,7 @@ fun FplProfileModal(
                         if (progressMode) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         } else {
-                            Text("Save")
+                            Text("Update")
                         }
                     }
                 }
@@ -1646,8 +1723,7 @@ fun PlayerDraftDialog(
     // Filter list of players by position and search keyword and duplicate drafting
     val draftedIds = squadPlayers.values.filterNotNull().toSet()
     val availablePlayers = uiState.players.filter { player ->
-        val mappedPos = (player.position ?: "DEF").uppercase()
-        mappedPos == targetPosition && !draftedIds.contains(player.id) &&
+        player.isEligibleForFplSlot(targetPosition) && !draftedIds.contains(player.id) &&
         (player.name ?: "").contains(searchQuery, ignoreCase = true)
     }.sortedByDescending { it.computedPoints }
 
@@ -2089,10 +2165,10 @@ fun BestElevenTab(viewModel: EflViewModel) {
     // DEF: Highest 4
     // MID: Highest 3
     // FWD: Highest 3
-    val gks = uiState.players.filter { (it.position ?: "DEF").uppercase() == "GK" }.sortedByDescending { it.computedPoints }
-    val defs = uiState.players.filter { (it.position ?: "DEF").uppercase() == "DEF" }.sortedByDescending { it.computedPoints }
-    val mids = uiState.players.filter { (it.position ?: "DEF").uppercase() == "MID" }.sortedByDescending { it.computedPoints }
-    val fwds = uiState.players.filter { (it.position ?: "DEF").uppercase() == "FWD" }.sortedByDescending { it.computedPoints }
+    val gks = uiState.players.filter { it.fplPosition == "GK" }.sortedByDescending { it.computedPoints }
+    val defs = uiState.players.filter { it.fplPosition == "DEF" }.sortedByDescending { it.computedPoints }
+    val mids = uiState.players.filter { it.fplPosition == "MID" }.sortedByDescending { it.computedPoints }
+    val fwds = uiState.players.filter { it.fplPosition == "FWD" }.sortedByDescending { it.computedPoints }
 
     val bestGk = gks.firstOrNull()
     val bestDefs = defs.take(4)

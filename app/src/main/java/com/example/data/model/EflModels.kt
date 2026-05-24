@@ -76,6 +76,47 @@ data class Player(
     val fplPrice: Double
         get() = efl_price ?: eflPrice ?: price ?: 7.0
 
+    val fplPosition: String
+        get() {
+            val p = (position ?: "").trim().uppercase()
+            val c = mergedCategory.uppercase()
+            return when {
+                p.startsWith("GK") || p.contains("GOAL") || p.contains("KEEPER") || c == "GK" -> "GK"
+                p.startsWith("DEF") || p.contains("BACK") || p.contains("DEFENDER") || p == "CB" || p == "LB" || p == "RB" || p.contains("DEF") -> "DEF"
+                p.contains("WING") || p == "LW" || p == "RW" || p == "LWF" || p == "RWF" || p.contains("WNG") -> "MID"
+                p.contains("STRIKER") || p.contains("STRI") || p == "ST" || p == "CF" || p.startsWith("CF") || p.startsWith("FWD") || p.contains("FORWARD") -> "FWD"
+                p.contains("MID") || p.startsWith("MID") || p == "CM" || p == "LM" || p == "RM" || p.contains("FIELD") || p == "AM" || p == "CAM" || p == "DM" || p == "CDM" -> "MID"
+                p.contains("FOR") || p.contains("FORWARD") -> "FWD"
+                else -> "MID"
+            }
+        }
+
+    val naturalRole: String
+        get() {
+            val p = (position ?: "").trim().uppercase()
+            val c = mergedCategory.uppercase()
+            return when {
+                p.startsWith("GK") || p.contains("GOAL") || p.contains("KEEPER") || c == "GK" -> "GK"
+                p.startsWith("DEF") || p.contains("BACK") || p.contains("DEFENDER") || p == "CB" || p == "LB" || p == "RB" || p.contains("DEF") -> "DEF"
+                p.contains("WING") || p == "LW" || p == "RW" || p == "LWF" || p == "RWF" || p.contains("WNG") -> "WINGER"
+                p.contains("STRIKER") || p.contains("STRI") || p == "ST" || p == "CF" || p.startsWith("CF") || p.startsWith("FWD") || p.contains("FORWARD") -> "STRIKER"
+                p.contains("MID") || p.startsWith("MID") || p == "CM" || p == "LM" || p == "RM" || p.contains("FIELD") || p == "AM" || p == "CAM" || p == "DM" || p == "CDM" -> "MID"
+                p.contains("FOR") || p.contains("FORWARD") -> "STRIKER"
+                else -> "MID"
+            }
+        }
+
+    fun isEligibleForFplSlot(targetSlotPosition: String): Boolean {
+        val role = naturalRole
+        return when (targetSlotPosition.uppercase()) {
+            "GK" -> role == "GK"
+            "DEF" -> role == "DEF"
+            "MID" -> role == "MID" || role == "WINGER"
+            "FWD" -> role == "STRIKER" || role == "WINGER" || role == "MID"
+            else -> false
+        }
+    }
+
     var computedPoints: Int = 0
 }
 
@@ -147,7 +188,20 @@ data class Result(
     @Json(name = "t1_red_2") val t1_red_2: List<String> = emptyList(),
 
     @Json(name = "t2_red_1") val t2_red_1: List<String> = emptyList(),
-    @Json(name = "t2_red_2") val t2_red_2: List<String> = emptyList()
+    @Json(name = "t2_red_2") val t2_red_2: List<String> = emptyList(),
+
+    @Json(name = "t1_pen_score") val t1_pen_score: Double? = null,
+    @Json(name = "t2_pen_score") val t2_pen_score: Double? = null,
+
+    @Json(name = "t1_pen_goal_1") val t1_pen_goal_1: List<String> = emptyList(),
+    @Json(name = "t1_pen_goal_2") val t1_pen_goal_2: List<String> = emptyList(),
+    @Json(name = "t1_pen_goal_3") val t1_pen_goal_3: List<String> = emptyList(),
+    @Json(name = "t1_pen_goal_4") val t1_pen_goal_4: List<String> = emptyList(),
+
+    @Json(name = "t2_pen_goal_1") val t2_pen_goal_1: List<String> = emptyList(),
+    @Json(name = "t2_pen_goal_2") val t2_pen_goal_2: List<String> = emptyList(),
+    @Json(name = "t2_pen_goal_3") val t2_pen_goal_3: List<String> = emptyList(),
+    @Json(name = "t2_pen_goal_4") val t2_pen_goal_4: List<String> = emptyList()
 ) {
     val score1: Int
         get() = (team1_score ?: t1_score ?: 0.0).toInt()
@@ -197,6 +251,14 @@ data class Result(
             "t1_red_2" -> t1_red_2
             "t2_red_1" -> t2_red_1
             "t2_red_2" -> t2_red_2
+            "t1_pen_goal_1" -> t1_pen_goal_1
+            "t1_pen_goal_2" -> t1_pen_goal_2
+            "t1_pen_goal_3" -> t1_pen_goal_3
+            "t1_pen_goal_4" -> t1_pen_goal_4
+            "t2_pen_goal_1" -> t2_pen_goal_1
+            "t2_pen_goal_2" -> t2_pen_goal_2
+            "t2_pen_goal_3" -> t2_pen_goal_3
+            "t2_pen_goal_4" -> t2_pen_goal_4
             else -> emptyList()
         }
     }
