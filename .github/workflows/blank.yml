@@ -12,13 +12,15 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # গ্র্যাডল ভার্সন পরিবর্তন করে ৯.৩.১ করা হলো (প্লাগইন ৯.১.১ এর রিকোয়ারমেন্ট অনুযায়ী)
       - name: Setup Gradle Engine
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.3.1
 
-      # সরাসরি 'gradle' কম্যান্ড দিয়ে ডিবাগ এপিকে বিল্ড
+      # গিটহাবের রুট ডিরেক্টরিতে থাকা base64 ফাইল থেকে আসল চাবি (debug.keystore) তৈরি করা হচ্ছে
+      - name: Decode Debug Keystore File
+        run: base64 --decode debug.keystore.base64 > debug.keystore
+
       - name: Build Debug APK with Gradle
         run: gradle assembleDebug
 
