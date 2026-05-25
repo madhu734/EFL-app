@@ -1,0 +1,31 @@
+name: Build EFL Application APK
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle Engine
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 9.3.1
+
+      # গিটহাবের রুট ডিরেক্টরিতে থাকা base64 ফাইল থেকে আসল চাবি (debug.keystore) তৈরি করা হচ্ছে
+      - name: Decode Debug Keystore File
+        run: base64 --decode debug.keystore.base64 > debug.keystore
+
+      - name: Build Debug APK with Gradle
+        run: gradle assembleDebug
+
+      - name: Upload Production APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: efl-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
