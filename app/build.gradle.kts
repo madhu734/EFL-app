@@ -1,3 +1,6 @@
+import java.io.File
+import java.net.URL
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -119,4 +122,28 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
+
+// Automatically download launcher icons from the user's specified URL during Gradle sync/build
+try {
+    val destDirBase = project.file("src/main/res")
+    val imageUrl = "https://i.postimg.cc/nrgJD2Zm/EFL.png"
+    val bytes = URL(imageUrl).openStream().use { it.readBytes() }
+    val densities = listOf("hdpi", "mdpi", "xhdpi", "xxhdpi", "xxxhdpi")
+    densities.forEach { density ->
+        val destDir = File(destDirBase, "mipmap-$density")
+        if (!destDir.exists()) {
+            destDir.mkdirs()
+        }
+        val icLauncher = File(destDir, "ic_launcher.png")
+        icLauncher.writeBytes(bytes)
+        
+        val icLauncherRound = File(destDir, "ic_launcher_round.png")
+        icLauncherRound.writeBytes(bytes)
+    }
+    project.logger.lifecycle("Successfully downloaded and updated launcher icons in all mipmap directories.")
+} catch (e: Exception) {
+    project.logger.error("Failed to download launcher icons: ${e.message}", e)
+}
+
+
 
